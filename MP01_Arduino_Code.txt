@@ -1,0 +1,106 @@
+// This is the code for MP01
+// Date Modified: May 3, 2026
+
+#include <bluefruit.h>
+
+// --- Pin Definitions ---
+#define BOARD_LED      3
+#define IR_SIGNAL_PIN  21   // The "eye" of the sensor (detects movement/interruption)
+#define IR_POWER_PIN   20   // We use a pin to power the sensor so we can cut power later
+#define SLEEP_DELAY    150000 // 150 seconds of no movement before the device shuts down
+
+BLEUart bleuart; // This creates a "Serial-over-Bluetooth" pipe to talk to your phone
+
+int totalCounter = 0;
+bool lastIRState;
+uint32_t lastActivity = 0; // Tracks the last time (in milliseconds) something happened
+
+void setup() {
+  Serial.begin(115200);
+  Serial.println("System Starting...");
+
+  // --- Hardware Power Setup ---
+  pinMode(IR_POWER_PIN, OUTPUT);
+
+  // These two lines are "High Drive" settings. They ensure the pin provides
+  // enough stable current to power the IR sensor properly.
+  uint32_t pin_idx = g_ADigitalPinMap[IR_POWER_PIN];
+  NRF_GPIO->PIN_CNF[pin_idx] |= (GPIO_PIN_CNF_DRIVE_H0H1 << GPIO_PIN_CNF_DRIVE_Pos);
+
+  digitalWrite(IR_POWER_PIN, HIGH); // Turn the sensor ON
+  delay(25); // Give the sensor a moment to "wake up"
+
+  pinMode(IR_SIGNAL_PIN, INPUT_PULLUP); // Look for the signal from the IR sensor
+  lastIRState = digitalRead(IR_SIGNAL_PIN);
+  pinMode(BOARD_LED, OUTPUT);
+
+  // --- Bluetooth (BLE) Initialization ---
+  Bluefruit.begin();
+  Bluefruit.setTxPower(4); // Signal strength. 4 is strong; lower numbers save battery.
+  Bluefruit.setName("Playaeton-MP01");
+
+  bleuart.begin(); // Start the UART service so we can send text to an app
+
+  // Advertising tells your phone "I am here, please connect to me!"
+  Bluefruit.Advertising.addFlags(BLE_GAP_ADV_FLAGS_LE_ONLY_GENERAL_DISC_MODE);
+  Bluefruit.Advertising.addService(bleuart);
+  Bluefruit.ScanResponse.addName();
+  Bluefruit.Advertising.restartOnDisconnect(true); // Auto-start advertising if phone leaves
+  Bluefruit.Advertising.start(0);
+
+  lastActivity = millis(); // Start the inactivity clock
+}
+
+void loop() {
+  bool currentIR = digitalRead(IR_SIGNAL_PIN);
+  uint32_t now = millis(); // Current time since the chip started
+
+  // --- 1. Detection Logic ---
+  // We check for a "Falling Edge": when the sensor goes from HIGH (nothing) to LOW (detected)
+  if (currentIR == LOW && lastIRState == HIGH) {
+    totalCounter++;
+
+    // If a phone is connected via the app, send the data over the air
+    if (Bluefruit.connected()) {
+      bleuart.print("Active | Count: ");
+      bleuart.println(totalCounter);
+    }
+
+    lastActivity = now; // Reset the inactivity timer because we just saw movement
+
+    Serial.print("Detected! Count: ");
+    Serial.println(totalCounter);
+
+    // Blink the onboard LED quickly for visual feedback
+    digitalWrite(BOARD_LED, HIGH);
+    delay(30);
+    digitalWrite(BOARD_LED, LOW);
+  }
+
+  lastIRState = currentIR; // Save the state for the next loop comparison
+
+  // --- 2. Inactivity & Deep Sleep ---
+  // If the time passed (now - lastActivity) is greater than our limit (150s)...
+  if (now - lastActivity > SLEEP_DELAY) {
+
+    if (Bluefruit.connected()) {
+      // Tell the app we are leaving so it doesn't just "freeze"
+      bleuart.print("Inactivity Sleep | Final Count: ");
+      bleuart.println(totalCounter);
+
+      delay(100); // Critical: wait for the Bluetooth radio to finish sending the text
+    }
+
+    Serial.println("Entering Deep Sleep...");
+
+    delay(50);
+    digitalWrite(IR_POWER_PIN, LOW); // Cut power to the IR sensor to save battery
+
+    // This line tells the chip: "Wake up only if the IR sensor pin changes state"
+    pinMode(IR_SIGNAL_PIN, INPUT_PULLUP_SENSE);
+
+    // SYSTEMOFF is the deepest sleep possible.
+    // The CPU stops completely. Only a reset or a pin sense (above) wakes it up.
+    NRF_POWER->SYSTEMOFF = 1;
+  }
+}
