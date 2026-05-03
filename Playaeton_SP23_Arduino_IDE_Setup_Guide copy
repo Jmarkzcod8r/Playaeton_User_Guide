@@ -1,0 +1,40 @@
+To make this guide perfect for a total beginner, here is the expanded Step 1 for your Playaeton SP23 (ESP32) setup.
+
+Step 1: Install the Arduino IDE
+The Arduino Integrated Development Environment (IDE) is the software "workbench" where you write, edit, and send code to your chip.
+    1. Download the Software:
+       Go to the official Arduino website: arduino.cc/en/software.
+    2. Select Your Version:
+       Download the installer for your operating system (Windows, macOS, or Linux).
+        ◦ Note: It is highly recommended to download Version 2.0 or higher, as it includes "Auto-complete" which helps beginners catch coding errors as they type.
+    3. Run the Installer:
+       Open the downloaded file and follow the on-screen instructions. Allow any requests to install "Device Drivers"—these are essential for your computer to recognize the ESP32 when you plug it in via USB.
+    4. Open the IDE:
+       Once installed, look for the teal Arduino icon on your desktop or applications folder and launch it.
+
+Step 2: Add the ESP32 Board URL
+Standard Arduino IDE needs to be pointed to the official ESP32 resource.
+    1. Open Arduino IDE.
+    2. Go to File > Preferences.
+    3. In the Additional Boards Manager URLs box, paste this link:
+       [https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json](https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json)
+    4. Click OK.
+
+Step 3: Install the ESP32 Core
+    1. Go to Tools > Board > Boards Manager...
+    2. Search for ESP32.
+    3. Find the one by Espressif Systems and click Install.
+
+Step 4: Select Your Board and Port
+    1. Plug your ESP32 into your computer.
+    2. Go to Tools > Board > esp32 > ESP32 Dev Module (or your specific model).
+    3. Go to Tools > Port and select the active COM port.
+
+Step 5: Upload and Monitor
+    1. Paste your SP23 code into the editor.
+    2. Click the Upload ($\rightarrow$) button.
+    3. Once the bottom bar says "Done Uploading," open Tools > Serial Monitor.
+    4. Important: Set the baud rate in the corner of the monitor to 115200. You should see the system start up!
+
+Beginner's Quick Check
+If you see the message "Playaeton SP23 Starting..." in your Serial Monitor, your setup is officially complete! You are now ready to test your Hall, Reed, and IR sensors.

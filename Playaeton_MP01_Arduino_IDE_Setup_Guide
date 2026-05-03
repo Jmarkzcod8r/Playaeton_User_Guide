@@ -1,0 +1,48 @@
+Playaeton MP01: Arduino IDE & nice!nano Setup Guide
+Date Modified: May 3, 2026
+
+Step 1: Install the Arduino IDE
+If you haven't already, download and install the latest version of the Arduino IDE.
+    • Where: arduino.cc/en/software
+    • Tip: Version 2.0 or higher is recommended for a much smoother experience.
+
+Step 2: Add the Board Manager URL
+The Arduino IDE doesn't know what a "nice!nano" or "nRF52" is by default. You have to tell it where to find the "blueprints" for those chips.
+    1. Open Arduino IDE.
+    2. Go to File > Preferences.
+    3. Look for the box labeled Additional Boards Manager URLs.
+    4. Paste this link into the box:
+       [https://adafruit.github.io/arduino-board-index/package_adafruit_nrf52_index.json](https://adafruit.github.io/arduino-board-index/package_adafruit_nrf52_index.json)
+    5. Click OK.
+
+Step 3: Install the nRF52 Board Core
+Now that the IDE knows where to look, you need to actually download the software that talks to your chip.
+    1. Go to Tools > Board > Boards Manager...
+    2. In the search bar, type nRF52.
+    3. Find Adafruit nRF52 by Adafruit and click Install.
+        ◦ Note: This might take a few minutes as it installs the compilers and tools.
+
+Step 4: Install the Bluefruit Library
+Your code uses #include <bluefruit.h>, which is a specific library for Bluetooth functions.
+    1. Go to Sketch > Include Library > Manage Libraries...
+    2. Search for Adafruit Bluefruit nRF52.
+    3. Click Install. If it asks to install "Dependencies" (other tiny libraries it needs), click Install All.
+
+Step 5: Select Your Board and Port
+Now you need to tell the IDE exactly which hardware is plugged into your computer.
+    1. Plug in your nice!nano via USB.
+    2. Go to Tools > Board > Adafruit nRF52 Boards > nice!nano.
+        ◦ If you don't see nice!nano, selecting Adafruit Feather nRF52840 Express usually works as they share the same brain.
+    3. Go to Tools > Port and select the one that appears when you plug in your board (e.g., COM3 or /dev/cu.usbmodem...).
+
+Step 6: Upload the Code
+You are ready to go!
+    1. Copy the MP01 code you have.
+    2. Delete everything in the Arduino IDE window and paste your code.
+    3. Click the Upload button (the arrow pointing to the right $\rightarrow$ in the top left corner).
+    4. Watch the "Output" window at the bottom. Once it says "Device programmed" or "Upload successful", your device is alive!
+
+Helpful Tips for Beginners
+    • The Serial Monitor: After uploading, go to Tools > Serial Monitor. Set the speed to 115200 baud. You will see the "System Starting..." message here!
+    • Double-Tap Reset: If the computer won't "see" your board, quickly double-tap the tiny Reset button on the nice!nano. The LED will start pulsing green/red, putting it into "Bootloader Mode" so you can upload code.
+    • Mobile App: To see the Bluetooth messages, download the Adafruit Bluefruit Connect app on your iPhone or Android. Connect to "Playaeton-MP01" and go to the UART section.
