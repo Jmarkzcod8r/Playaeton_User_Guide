@@ -1,0 +1,136 @@
+// This is the code for the SP23 (ESP32 Version)
+// Date Modified: May 3, 2026
+
+#include <BLEDevice.h>
+#include <BLEServer.h>
+#include <BLEUtils.h>
+#include <BLE2902.h>
+
+// --- Pin Definitions ---
+#define BOARD_LED    8
+#define REED_PIN     10
+#define HALL_PIN     6
+#define IR_PIN       4
+#define SLEEP_DELAY  150000 // 150,000ms = 150 seconds of "no movement" before sleep
+
+// --- Variables ---
+BLECharacteristic *pTxCharacteristic;
+bool deviceConnected = false;
+int totalCounter = 0;
+uint32_t lastActivity = 0; // Stores the last time a sensor was triggered
+
+bool lastReedState;
+bool lastHallState;
+bool lastIRState;
+
+// --- Bluetooth Connection Callbacks ---
+// This section handles what happens when a phone connects or disconnects
+class MyServerCallbacks: public BLEServerCallbacks {
+    void onConnect(BLEServer* pServer) {
+      deviceConnected = true;
+      Serial.println("Phone Connected!");
+    };
+    void onDisconnect(BLEServer* pServer) {
+      deviceConnected = false;
+      Serial.println("Phone Disconnected. Advertising again...");
+      BLEDevice::startAdvertising(); // Keep looking for a phone
+    }
+};
+
+void setup() {
+  Serial.begin(115200);
+
+  pinMode(BOARD_LED, OUTPUT);
+  digitalWrite(BOARD_LED, HIGH); // LED starts OFF
+
+  // INPUT_PULLUP: Internal resistors keep the pin at 3.3V (HIGH)
+  // When the sensor triggers, it pulls the pin to 0V (LOW)
+  pinMode(REED_PIN, INPUT_PULLUP);
+  pinMode(HALL_PIN, INPUT_PULLUP);
+  pinMode(IR_PIN, INPUT_PULLUP);
+
+  // Take an initial snapshot of the sensors so we don't count a "hit" on startup
+  lastReedState = digitalRead(REED_PIN);
+  lastHallState = digitalRead(HALL_PIN);
+  lastIRState   = digitalRead(IR_PIN);
+
+  // --- Bluetooth Initialization ---
+  BLEDevice::init("Playaeton SP23");
+  BLEServer *pServer = BLEDevice::createServer();
+  pServer->setCallbacks(new MyServerCallbacks());
+
+  // Nordic UART Service (Standard for many BLE apps)
+  BLEService *pService = pServer->createService("6E400001-B5A3-F393-E0A9-E50E24DCCA9E");
+  pTxCharacteristic = pService->createCharacteristic(
+                        "6E400003-B5A3-F393-E0A9-E50E24DCCA9E",
+                        BLECharacteristic::PROPERTY_NOTIFY | BLECharacteristic::PROPERTY_READ
+                      );
+  pTxCharacteristic->addDescriptor(new BLE2902());
+  pService->start();
+
+  BLEAdvertising *pAdvertising = BLEDevice::getAdvertising();
+  pAdvertising->addServiceUUID("6E400001-B5A3-F393-E0A9-E50E24DCCA9E");
+  BLEDevice::startAdvertising();
+
+  lastActivity = millis(); // Start the inactivity timer
+}
+
+void loop() {
+  bool currentReed = digitalRead(REED_PIN);
+  bool currentHall = digitalRead(HALL_PIN);
+  bool currentIR   = digitalRead(IR_PIN);
+  uint32_t now = millis(); // Get current running time
+
+  // --- 1. Detection Logic ---
+  // If current state is NOT EQUAL to the last state, something changed
+  bool reedChanged = (currentReed != lastReedState);
+  bool hallChanged = (currentHall != lastHallState);
+  bool irChanged   = (currentIR   != lastIRState);
+
+  if (reedChanged || hallChanged || irChanged) {
+    totalCounter++;
+    lastActivity = now; // Reset the inactivity timer because we saw movement
+
+    Serial.printf("Count: %d | Triggered by: %s\n", totalCounter,
+                  irChanged ? "IR" : (hallChanged ? "Hall" : "Reed"));
+
+    if (deviceConnected) {
+      // Send the current count as a text string to the app
+      pTxCharacteristic->setValue(String(totalCounter).c_str());
+      pTxCharacteristic->notify();
+    }
+
+    // Quick blink for visual feedback
+    digitalWrite(BOARD_LED, LOW);
+    delay(20);
+    digitalWrite(BOARD_LED, HIGH);
+  }
+
+  // Update "last" states for the next loop
+  lastReedState = currentReed;
+  lastHallState = currentHall;
+  lastIRState   = currentIR;
+
+  // --- 2. Inactivity & Deep Sleep Logic ---
+  // If (Current Time - Last Activity Time) is more than 150 seconds...
+  if (now - lastActivity > SLEEP_DELAY) {
+
+    if (deviceConnected) {
+      // Send a final message so the app user knows the device is going to sleep
+      String sleepMsg = "Sleeping | Final Count: " + String(totalCounter);
+      pTxCharacteristic->setValue(sleepMsg.c_str());
+      pTxCharacteristic->notify();
+      delay(200); // Give the Bluetooth hardware time to finish sending
+    }
+
+    Serial.println("Inactivity detected. Entering Deep Sleep...");
+
+    // Tell the ESP32 to wake up if any of these pins go LOW
+    esp_sleep_enable_ext1_wakeup( (1ULL << REED_PIN) | (1ULL << HALL_PIN) | (1ULL << IR_PIN), ESP_EXT1_WAKEUP_ALL_LOW);
+
+    // Shut down the CPU. Battery usage drops to almost nothing.
+    esp_deep_sleep_start();
+  }
+
+  delay(10); // Tiny delay to help with "debounce" (double-counting)
+}
